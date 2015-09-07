@@ -8,18 +8,20 @@ class DBManager:
     usr = ''
     pwd = ''
     dbn = ''
+    tbln = ''
     def __init__(self,conf):    
         self.host = conf['MYSQLDURL']
         self.usr = conf['MYSQLUSER']
         self.pwd = conf['MYSQLPASS']
         self.dbn = conf['MYSQLDBNAME']
+        self.tbln = conf['MYSQLTBLNAME']
     
     def connect_db(self):
         return mdb.connect(self.host, self.usr, self.pwd, self.dbn)
     
-    def readFromDatabase(self, tbl, projection, where):
+    def readFromDatabase(self, projection, where):
         with self.connect_db() as con: 
-
+            tbl = self.tbln
             cur = self.connect_db().cursor()
             cmdString = "SELECT "+projection+" FROM "+tbl+" WHERE "+where
             cur.execute(cmdString)
@@ -28,7 +30,8 @@ class DBManager:
             con.close()
             return rows
 
-    def writeToDatabase(self, tbl, dataSet):
+    def writeToDatabase(self, dataSet):
+        tbl = self.tbln
         with self.connect_db() as con:
             insertString = "INSERT INTO "+tbl+"("
             valueString = "VALUES("
@@ -62,7 +65,8 @@ class DBManager:
                     except Exception:
                         i += 1
                         
-    def deleteFromDatabase(self, tbl, where):
+    def deleteFromDatabase(self, where):
+        tbl = self.tbln
         with self.connect_db() as con: 
             cur = self.connect_db().cursor()
             cmdString = "DELETE FROM "+tbl+" WHERE "+where
@@ -72,7 +76,8 @@ class DBManager:
             con.close()
             return rows
     
-    def updateRow(self, tbl, row_id,fields):
+    def updateRow(self, row_id, fields):
+        tbl = self.tbln
         with self.connect_db() as con:
             update_str = "UPDATE %s SET " % tbl
             data_str = ""
@@ -86,14 +91,16 @@ class DBManager:
             con.close()
 
     def fingerprintRecordExists(self, fingerprint):
-        ret = self.readFromDatabase("fingerprints","id","file_fingerprint='%s'" % fingerprint)
+        tbl = self.tbln
+        ret = self.readFromDatabase(tbl,"id","file_fingerprint='%s'" % fingerprint)
         if ret is None or len(ret)<1:
             return False
         else:
             return True
         
     def fileRecordExists(self, fileName):
-        ret = self.readFromDatabase("fingerprints","id","file_location='%s'" % fileName)
+        tbl = self.tbln
+        ret = self.readFromDatabase(tbl,"id","file_location='%s'" % fileName)
         if not ret or len(ret)<1:
             return False
         else:
