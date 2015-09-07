@@ -1,0 +1,11 @@
+{
+    "HOSTNAME":"test_system-local",
+    "REPORTEMAIL":"you@yourmailer.com",
+    "VTAPIKEY": "GetAVirusTotalAPIKeyFromVirusTotal",
+    "SQLL3DBNAME":"pyzano.db",
+    "MYSQLDURL":"localhost",
+    "MYSQLUSER":"pyzano",
+    "MYSQLPASS":"pyzano",
+    "MYSQLDBNAME":"file_fingerprints",
+    "MAXWAIT":600
+}
