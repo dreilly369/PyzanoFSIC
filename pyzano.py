@@ -270,11 +270,13 @@ if __name__ == "__main__":
     
     # Handle System change options
     parser.add_option("-w", "--handle-deleted", dest="handleDeleted", default="i",
-                      help="Handle Added Files by: (i)nteractive, (d)elete from db, or (r)estore to file system")
+                      help="Handle Deleted Files by: (i)nteractive, (d)elete from db, or (r)estore to file system")
     parser.add_option("-x", "--handle-changed", dest="handleChanged", default="i",
                       help="Handle Changed Files by: (i)nteractive, (u)pdate db, or (r)estore from")
     parser.add_option("-y", "--handle-added", dest="handleAdded", default="i",
                       help="Handle Added Files by: (i)nteractive, (a)dd to db, or (d)elete from file system")
+    parser.add_option("-e", "--email-db", dest="emailDb", default=None,
+                      help="Email the VT scan DB to the Admin email at the end. If \"-e !\" email the DB and exit")
     
     # Scanner options
     #parser.add_option("-j", "--jotti-scan", dest="jottiToo", default=False,
@@ -295,6 +297,15 @@ if __name__ == "__main__":
                       help="If True: Files that are new or changed will be uploaded to VirusTotal (If the hash is not found first)")
                       
     (options, args) = parser.parse_args()
+    print options
+    arglen = len(args)
+    
+    if options.emailDb is "!":
+        from pyzano_email_client import EmailManager
+        em = EmailManager()
+        em.emailDBFile()
+        print "emailed DB."
+        exit(0)
     
     if options.initDb != False:
        pyzano_multi_filescan.initdb()
@@ -302,7 +313,7 @@ if __name__ == "__main__":
        exit(0)
     
     # Safety Check the options        
-    if options.topDir is None and options.singleFile is None and options.removeFingerprint is None:
+    if options.topDir is None and options.singleFile is None:
         print "Must define a Directory (-d) or File (-f)"
         print failed_banner
         exit(1)
@@ -369,6 +380,10 @@ if __name__ == "__main__":
             scanner = MissingFileScanner()
         scanner.scanForRemoved()
         
+    if options.emailDb is not None:
+        from pyzano_email_client import EmailManager
+        em = EmailManager()
+        em.emailDBFile()
     print banner
     exit(0)
     
