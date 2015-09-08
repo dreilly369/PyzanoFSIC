@@ -68,13 +68,10 @@ class DBManager:
     def deleteFromDatabase(self, where):
         tbl = self.tbln
         with self.connect_db() as con: 
-            cur = self.connect_db().cursor()
-            cmdString = "DELETE FROM "+tbl+" WHERE "+where
-            cur.execute(cmdString)
-
-            rows = cur.fetchall()
+            cmdString = "DELETE FROM "+tbl+" WHERE "+where+";"
+            con.execute(cmdString)
             con.close()
-            return rows
+            return
     
     def updateRow(self, row_id, fields):
         tbl = self.tbln
@@ -92,7 +89,7 @@ class DBManager:
 
     def fingerprintRecordExists(self, fingerprint):
         tbl = self.tbln
-        ret = self.readFromDatabase(tbl,"id","file_fingerprint='%s'" % fingerprint)
+        ret = self.readFromDatabase("id","file_fingerprint='%s'" % fingerprint)
         if ret is None or len(ret)<1:
             return False
         else:
@@ -100,7 +97,7 @@ class DBManager:
         
     def fileRecordExists(self, fileName):
         tbl = self.tbln
-        ret = self.readFromDatabase(tbl,"id","file_location='%s'" % fileName)
+        ret = self.readFromDatabase("id","file_location='%s'" % fileName)
         if not ret or len(ret)<1:
             return False
         else:
