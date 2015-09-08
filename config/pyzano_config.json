@@ -1,6 +1,8 @@
 {
     "HOSTNAME":"test_system-local",
     "REPORTEMAIL":"you@yourmailer.com",
+    "GMAILUSER":"pyzano_sender@gmail.com",
+    "GMAILPASS":"YourEmailPassword",
     "VTAPIKEY": "GetAVirusTotalAPIKeyFromVirusTotal",
     "SQLL3DBNAME":"pyzano.db",
     "MYSQLDURL":"localhost",
