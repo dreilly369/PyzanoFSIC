@@ -7,5 +7,6 @@
     "MYSQLUSER":"pyzano",
     "MYSQLPASS":"pyzano",
     "MYSQLDBNAME":"file_fingerprints",
+    "MYSQLTBLNAME":"fingerprints",
     "MAXWAIT":600
 }
