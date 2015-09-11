@@ -8,6 +8,11 @@ import json
 from commands import *
 from optparse import OptionParser
 import binascii
+import string
+import httplib
+from httplib import HTTPConnection, HTTPS_PORT
+import ssl
+import socket
 
 #Pyzano Imports
 sep = os.sep
@@ -58,6 +63,35 @@ failed_banner = '''
           '-......-'
 '''
 
+
+class HTTPSConnection(HTTPConnection):
+    "This class allows communication via SSL."
+    default_port = HTTPS_PORT
+
+    def __init__(self, host, port=None, key_file=None, cert_file=None,
+            strict=None, timeout=socket._GLOBAL_DEFAULT_TIMEOUT,
+            source_address=None):
+        HTTPConnection.__init__(self, host, port, strict, timeout,
+                source_address)
+        self.key_file = key_file
+        self.cert_file = cert_file
+
+    def connect(self):
+        "Connect to a host on a given (SSL) port."
+        sock = socket.create_connection((self.host, self.port),
+                self.timeout, self.source_address)
+        if self._tunnel_host:
+            self.sock = sock
+            self._tunnel()
+        # this is the only line we modified from the httplib.py file
+        # we added the ssl_version variable
+        self.sock = ssl.wrap_socket(sock, self.key_file, self.cert_file, ssl_version=ssl.PROTOCOL_TLSv1)
+
+#now we override the one in httplib
+httplib.HTTPSConnection = HTTPSConnection
+# ssl_version corrections are done
+
+
 def load_config():
     sep = os.sep
     base_dir = os.path.realpath(__file__).strip(sys.argv[0])
@@ -91,15 +125,13 @@ def vscan_file(file,upload):
 
 def handleChangedInteractive(fn):
     choice = ""
-    while choice.lower() not in ["update","add","skip","d","a","s"]:
+    while choice.lower() not in ["update","revert","skip","u","r","s"]:
         print "How would you like to handle %s?:" % fn
         choice = raw_input("(u)pdate DB, (r)evert from DB, or (s)kip: ")
     if choice in ["u","update"]:
         return 'u'
     elif choice in ["r","revert"]:
         return 'r'
-    elif choice in ["a","add"]:
-        return 'a'
     else:
         return 's'
 
@@ -129,34 +161,45 @@ def handleChange(fileName,submit_file=False):
         return True
     
 # Recurse over directories and pass the files to the file hashing function
-def hashDir(dir, blockSize, verbose=None, upload_file=False,storeBin=False,disposistions=["i","i"]):
+def hashDir(dir, blockSize, verbose=None, upload_file=False,storeBin=False,disposistions=["i","i"],scanFile=True):
     output = {}
+    
+    if ignoreThis(dir):
+        print failed_banner
+        print "Dir in ignore list. Skipping. Remove it from the config if you want it scanned."
+        exit(0)
     for f in os.listdir(dir):
-        at = os.path.abspath(dir+"/"+f)
+        
+        sep = os.sep
+        at = os.path.abspath(dir+sep+f)
         #print "checking "+at
         
         if os.path.isdir(at):
-            hashDir(at,blockSize,verbose,upload_file,storeBin) # recurse into directory
+            if not ignoreThis(at):
+                hashDir(at,blockSize,verbose,upload_file,storeBin,disposistions,scanFile) # recurse into directory
         elif os.path.isfile(at):
-            res = hashFile(at,blockSize,verbose,upload_file,storeBin,disposistions)
-            #print res
-            vkey = os.path.basename(at)
-            output[vkey] = {"location":at,"fingerprint":res}
-            if verbose is not None:
-                output[os.path.basename(at)]['absolute'] = os.path.isabs(at)
-                output[os.path.basename(at)]['is_file'] =  os.path.isfile(at)
-                output[os.path.basename(at)]['is_dir'] =  os.path.isdir(at)
-                output[os.path.basename(at)]['is_link'] = os.path.islink(at)
-                output[os.path.basename(at)]['mountpoint'] = os.path.ismount(at)
-                output[os.path.basename(at)]['exists'] = os.path.exists(at)
-                output[os.path.basename(at)]['link_exists'] = os.path.lexists(at)
+            if ignoreThis(at):
+                pass
+            else:
+                res = hashFile(at,blockSize,verbose,upload_file,storeBin,disposistions,scanFile)
+                #print res
+                vkey = os.path.basename(at)
+                output[vkey] = {"location":at,"fingerprint":res}
+                if verbose is not None:
+                    output[os.path.basename(at)]['absolute'] = os.path.isabs(at)
+                    output[os.path.basename(at)]['is_file'] =  os.path.isfile(at)
+                    output[os.path.basename(at)]['is_dir'] =  os.path.isdir(at)
+                    output[os.path.basename(at)]['is_link'] = os.path.islink(at)
+                    output[os.path.basename(at)]['mountpoint'] = os.path.ismount(at)
+                    output[os.path.basename(at)]['exists'] = os.path.exists(at)
+                    output[os.path.basename(at)]['link_exists'] = os.path.lexists(at)
         else:
             print 'Unable to read ' + at
             
     return output
 
 #Hash a file and check it against the database        
-def hashFile(fileName, blocksize=65536,verbose=None,uploadFile=False,storeBin=False,disposistions=["i","i"]):
+def hashFile(fileName, blocksize=65536,verbose=None,uploadFile=False,storeBin=False,disposistions=["i","i"],scanFile=True):
     hasher = hashlib.sha1()
     conf = load_config()
     dbm = DBManager(conf)
@@ -191,7 +234,8 @@ def hashFile(fileName, blocksize=65536,verbose=None,uploadFile=False,storeBin=Fa
     if not exists:
         #Handle case where this is a new file
         print "%s is new. FINGERPRINT: %s." % (fileName,fingerprint)
-        vscan_file(os.path.abspath(fileName),uploadFile)   
+        if scanFile:
+            vscan_file(os.path.abspath(fileName),uploadFile)   
         
         if dispos[0] is "i":
             c = handleNewInteractive(fileName)
@@ -204,11 +248,9 @@ def hashFile(fileName, blocksize=65536,verbose=None,uploadFile=False,storeBin=Fa
             dbm.writeToDatabase(row)
         elif c is "p":
             print row
-        else:
-            print "Skipping update for %s" % fileName
     else:
         #Handle cases Where files already exists in DB
-        where_str = "file_fingerprint='%s' or file_location='%s'" % (fingerprint,fileName)
+        where_str = "file_fingerprint=\"%s\" or file_location=\"%s\"" % (fingerprint,fileName)
         rows = dbm.readFromDatabase("id,file_fingerprint,bin_string",where_str)
         is_new = "False"
         for res in rows:
@@ -220,10 +262,11 @@ def hashFile(fileName, blocksize=65536,verbose=None,uploadFile=False,storeBin=Fa
                     c = dispos[1]
                 has_changed = "True"
                 if c is "u":
-                    handleChange(fileName)
+                    if scanFile:
+                        handleChange(fileName)
                     dbm.updateRow(int(res[0]), row)
                 elif c is "r":
-                    where_str = "file_fingerprint='%s'" % fingerprint
+                    where_str = "file_fingerprint=\"%s\"" % fingerprint
                     rows = dbm.readFromDatabase("file_fingerprint,bin_string",where_str)
                     data = binascii.unhexlify(b64decode(rows[0][1]))
                     with open(fileName,"wb") as f:
@@ -231,8 +274,7 @@ def hashFile(fileName, blocksize=65536,verbose=None,uploadFile=False,storeBin=Fa
                         f.close()
                 elif c is "p":
                     print row
-                else:
-                    print "%s No changes made" % fileName
+                    
             elif storeBin and res[2] != hexadecimal:
                 print "Data changed for %s. Updating." % fileName
                 #Handle Case where File is kown but we want to add the bin data
@@ -260,7 +302,21 @@ def hashFile(fileName, blocksize=65536,verbose=None,uploadFile=False,storeBin=Fa
         
     return (row)
 
-    
+def ignoreThis(dirty):
+    theThing = ''.join(filter(string.printable.__contains__, dirty))
+    config = load_config()
+    if os.path.isdir(theThing):
+        if theThing in config["EXCLUDES"]["DIRECTORIES"]:
+            return True
+        
+    elif os.path.isfile(theThing):
+        extension = theThing.split(".")[-1]
+        
+        if os.path.abspath(theThing) in config["EXCLUDES"]["FILES"] or extension in config["EXCLUDES"]["EXTENSIONS"]:
+            print "Skip %s" % theThing
+            return True
+    return False
+            
 if __name__ == "__main__":
     parser = OptionParser()
     
@@ -277,7 +333,8 @@ if __name__ == "__main__":
                       help="Handle Added Files by: (i)nteractive, (a)dd to db, or (d)elete from file system")
     parser.add_option("-e", "--email-db", dest="emailDb", default=None,
                       help="Email the VT scan DB to the Admin email at the end. If \"-e !\" email the DB and exit")
-    
+    parser.add_option("-n", "--no-scan", dest="noScan", default=False,
+                      help="Only create Fingerprints, Do not check hashes.")
     # Scanner options
     #parser.add_option("-j", "--jotti-scan", dest="jottiToo", default=False,
     #                  help="The directory to start Hashing in. (cancels -f)")
@@ -297,20 +354,19 @@ if __name__ == "__main__":
                       help="If True: Files that are new or changed will be uploaded to VirusTotal (If the hash is not found first)")
                       
     (options, args) = parser.parse_args()
-    print options
     arglen = len(args)
     
+    
+    if options.initDb != False:
+       pyzano_multi_filescan.initdb()
+       print banner
+       exit(0)
     if options.emailDb is "!":
         from pyzano_email_client import EmailManager
         em = EmailManager()
         em.emailDBFile()
         print "emailed DB."
         exit(0)
-    
-    if options.initDb != False:
-       pyzano_multi_filescan.initdb()
-       print banner
-       exit(0)
     
     # Safety Check the options        
     if options.topDir is None and options.singleFile is None:
@@ -336,6 +392,10 @@ if __name__ == "__main__":
     #Turn on file info outputting if verbose
     if options.makeVerbose is not None:
         verbUp = True
+    
+    scanFile = True
+    if options.noScan != False:
+        scanFile = False
     
     #make the disposition tuple to handle new files and changed files
     dispos = []
@@ -363,9 +423,9 @@ if __name__ == "__main__":
         
     #Check if this is a directory scan
     if options.topDir is None:
-        hashFile(options.singleFile, options.blockSize, verbUp, options.uploadFile,options.storeBinData,dispos)
+        hashFile(options.singleFile, options.blockSize, verbUp, options.uploadFile,options.storeBinData,dispos,scanFile)
     else:
-        hashDir(options.topDir, options.blockSize, verbUp, options.uploadFile,options.storeBinData,dispos)
+        hashDir(options.topDir, options.blockSize, verbUp, options.uploadFile,options.storeBinData,dispos,scanFile)
         
     # Handle Files that exist in the DB, but not on the file System
     if options.handleDeleted.lower() not in ["skip","s"]:
