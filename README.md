@@ -19,7 +19,15 @@ For more details use:
 
 ## Getting Started
 The VirusTotal results are stored in a SQLLite .db file for easier submittion. The Database has to be initialized before it can be used. This can be done with the call:
-  ```python pyzano.py --init True```
+  ```python pyzano.py --init !```
+If you plan to run a local MySQL Database, otherwise:
+```python pyzano.py --init True```
+
+Now we can populate the file fingerprint database. If you know that you are working from  clean image you can add the option:
+```
+--no-scan True
+```
+To skip scanning the3 Hashes with VirusTotal. This will significantly increase the speed of the first scan, which can take a considerable amount of time on a large file system. 
 
 There are two primary use cases for Pyzano:
 ## File System Integrity Checker (FSIC)
@@ -38,14 +46,15 @@ Because Pyano can monitor the entire Linux File System, it can be used to monito
 Next run a snapshot scan of the clean VM:
 ```
   python pyzano.py \
-  --store-file 1 \
+  --store-file True \
   --handle-deleted s \
   --handle-changed s \
   --handle-added a \
-  --directory /dreilly369/test_dir/
+  --no-scan True \
+  --directory /dreilly369/venv/test_drive/
 ```
 
-Run the malware sample inside the VM using your normal analysis method. When it is finished executing you can run a comparison scan using the following command:
+Now, run the malware sample inside the VM using your normal analysis method. When it is finished executing you can run a comparison scan using the following command:
 ```
   python pyzano.py \
   --verbose 1 \
@@ -53,16 +62,24 @@ Run the malware sample inside the VM using your normal analysis method. When it 
   --handle-deleted i \
   --handle-changed i \
   --upload-file True \
-  --directory /dreilly369/test_dir/
+  --email-db True \
+  --directory /dreilly369/venv/test_drive/
 ```
   
-The output of the command will step through the files added, changed, and deleted since the last run. New and changed files will prompt you to choose what to do. You can skip through to read what FS changes were made. You do not have to revert at this point because the next command will handle resetting the environment from the DB:
+The output of the command will step through the files added, changed, and deleted since the last run. New and changed files will be scanned (and uploaded if neccessary) to VirusTotal. It will then prompt you to choose what to do. You can just skip through to read what FS changes were made. You do not have to revert at this point because the next command will handle resetting the environment from the DB for you:
 ```
   python pyzano.py \
-  --handle-added d \
-  --handle-deleted r \
-  --handle-changed r \
-  --directory /dreilly369/test_dir/
+  --handle-added delete \
+  --handle-deleted restore \
+  --handle-changed revert \
+  --directory /dreilly369/venv/test_drive/
 ```
   
-  
+Note the use of the full variable name. This is perfectly acceptable and will often times make scripts easier to read.
+
+## Emailing the VirusTotal Results
+During any scan you can add the:
+```
+--email-db True
+```
+option to have the VirusTotal results DB emailed to the configured Admin Email via a GMail account. The Database is base64 encoded and sent as text inside an email.
