@@ -322,7 +322,7 @@ if __name__ == "__main__":
     
     # Misc options
     parser.add_option("-i", "--init", dest="initDb", default=False,
-                      help="Initialize SQLLite3 DB file and return")
+                      help="Initialize SQLLite3 (and MySQL if i=!) DBs and return")
     
     # Handle System change options
     parser.add_option("-w", "--handle-deleted", dest="handleDeleted", default="i",
@@ -358,9 +358,13 @@ if __name__ == "__main__":
     
     
     if options.initDb != False:
-       pyzano_multi_filescan.initdb()
-       print banner
-       exit(0)
+        if options.initDb is "!":
+            pyzano_multi_filescan.initdbs(True)
+        else:
+            pyzano_multi_filescan.initdbs()
+            
+        print banner
+        exit(0)
     if options.emailDb is "!":
         from pyzano_email_client import EmailManager
         em = EmailManager()
