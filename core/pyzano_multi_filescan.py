@@ -1,3 +1,4 @@
+import os.path
 #!/usr/bin/python
 # Copyright (C) 2010 Michael Ligh
 #
@@ -39,6 +40,7 @@ import hashlib
 import urlparse
 from optparse import OptionParser
 import json 
+from subprocess import Popen, PIPE
 
 try:
     from sqlite3 import *
@@ -625,35 +627,52 @@ def savetodb(filename, detects, force):
     conn.commit()
     curs.close()
 
-def initdb():
-
+def initdbs(mySQLToo = False):
+    # First init the SQLLite DB
+    init_lite = True
     if os.path.isfile(DBNAME):
         print "File already exists, initialization not required."
-        return
+        init_lite = False
+        if not mySQLToo:
+            return
+    
+    if init_lite:
+        conn = connect(DBNAME)
+        curs = conn.cursor()
 
-    conn = connect(DBNAME)
-    curs = conn.cursor()
+        curs.executescript("""
+            CREATE TABLE samples (
+                id   INTEGER PRIMARY KEY,
+                md5  TEXT
+            );
+
+            CREATE TABLE detects (
+                id       INTEGER PRIMARY KEY,
+                sid      INTEGER,
+                vendor   TEXT,
+                name     TEXT
+            );
+            """)
+
+        curs.close()
+
+        if os.path.isfile(DBNAME):
+            print "Success."
+        else:
+            print "Failed."
     
-    curs.executescript("""
-        CREATE TABLE samples (
-            id   INTEGER PRIMARY KEY,
-            md5  TEXT
-        );
-    
-        CREATE TABLE detects (
-            id       INTEGER PRIMARY KEY,
-            sid      INTEGER,
-            vendor   TEXT,
-            name     TEXT
-        );
-        """)
-        
-    curs.close()
-    
-    if os.path.isfile(DBNAME):
-        print "Success."
-    else:
-        print "Failed."
+    if mySQLToo:
+        # Now the MySQLDB
+        filename = os.path.dirname(os.path.dirname(__file__))+"/sql/build_pyzano_schema.sql"
+        if config["MYSQLDURL"] not in ["localhost","127.0.0.1"]:
+            print "You cannot initialize a remote MySQL DB. You must log in to that system to initialize the DB!"
+        db = config["MYSQLDBNAME"]
+        user = config["MYSQLUSER"]
+        passwd = config["MYSQLPASS"]
+        process = Popen(['mysql', '-u', user, '-p', passwd, db, '<', filename],
+                        stdout=PIPE, stdin=PIPE)
+        output = process.communicate('source ' + filename)[0]
+        print output
 
 def main():
     parser = OptionParser()
