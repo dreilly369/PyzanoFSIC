@@ -22,6 +22,7 @@ class DBManager:
     def readFromDatabase(self, projection, where):
         with self.connect_db() as con: 
             tbl = self.tbln
+            #where = self.escapeApostrophe(where)
             cur = self.connect_db().cursor()
             cmdString = "SELECT "+projection+" FROM "+tbl+" WHERE "+where
             cur.execute(cmdString)
@@ -79,7 +80,7 @@ class DBManager:
             update_str = "UPDATE %s SET " % tbl
             data_str = ""
             for k in fields:
-                data_str += "%s='%s'," % (k,fields[k])
+                data_str += "%s=\"%s\"," % (k,fields[k])
             #remove last commas
             data_str = data_str[:-1]+" "
             where_str = "WHERE id=%d;" % row_id
@@ -89,7 +90,7 @@ class DBManager:
 
     def fingerprintRecordExists(self, fingerprint):
         tbl = self.tbln
-        ret = self.readFromDatabase("id","file_fingerprint='%s'" % fingerprint)
+        ret = self.readFromDatabase("id","file_fingerprint=\"%s\"" % fingerprint)
         if ret is None or len(ret)<1:
             return False
         else:
@@ -97,8 +98,11 @@ class DBManager:
         
     def fileRecordExists(self, fileName):
         tbl = self.tbln
-        ret = self.readFromDatabase("id","file_location='%s'" % fileName)
+        ret = self.readFromDatabase("id","file_location=\"%s\"" % fileName)
         if not ret or len(ret)<1:
             return False
         else:
             return True
+        
+    def escapeApostrophe(self,str):
+        return str.replace("'", "''")
