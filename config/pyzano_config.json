@@ -10,5 +10,18 @@
     "MYSQLPASS":"pyzano",
     "MYSQLDBNAME":"file_fingerprints",
     "MYSQLTBLNAME":"fingerprints",
-    "MAXWAIT":600
+    "MAXWAIT":600,
+    "EXCLUDES":{
+        "DIRECTORIES":[
+                       "/home/user/dir1",
+                       "/home/user/dir2"
+                      ],
+        "EXTENSIONS":[
+                      "db",
+                      "ova",
+                      "sav",
+                      "vmdk"
+                     ],
+        "FILES":["/home/user/Downloads/part1.sfx"]
+    }
 }
