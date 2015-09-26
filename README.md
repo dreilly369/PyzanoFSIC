@@ -1,6 +1,6 @@
 # PyzanoFSIC
 Pyzano FS Integrity Checker is a tool for monitoring the integrity of a Linux File System. It recursively scans directories for files. It then takes the hash value of the files binary data and compares it to the last known hash for that file. It has several features such as:
-* Store Binary backups of important files and programs
+* Store Binary backups of important files and programs (see limitations)
 * Restore Files and folders from the backups
 * Monitor System tables and binaries for rootkit changes
 * option to send the File to VirusTotal if it is not found
