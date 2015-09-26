@@ -20,6 +20,7 @@ sys.path.insert(0, os.getcwd()+sep+"core"+sep)
 import pyzano_multi_filescan
 from pyzano_multi_filescan import VirusTotal
 from pyzano_mysql import DBManager
+from pyzano_helper import PyzanoHelper
 
 banner = '''
                            _,.-----.,_
@@ -108,9 +109,9 @@ def vscan_file(file,upload):
     print "Scanning %s" % file
     vt_scanner = VirusTotal(file, upload)
     res = vt_scanner.submit()
+    cnt = 0
     if res:
         if int(res.get("result")) > 0:
-            cnt = 0
             for k in res.get("report")[1]:
                 if res.get("report")[1][k] != '':
                     print "\033[1;31m%s : %s\033[1;m" % (k, res.get("report")[1][k])
@@ -121,7 +122,7 @@ def vscan_file(file,upload):
                 start_str = "\033[1;32m"
             end_str = "\033[1;m"
             print "%sDetected by: %d Scanners\nYou can see the scan at\n%s%s" % (start_str,cnt,res.get("permalink"),end_str)
-    return True
+    return cnt
 
 def handleChangedInteractive(fn):
     choice = ""
@@ -147,18 +148,6 @@ def handleNewInteractive(fn):
     else:
         return 's'
 
-# Expand this section to add different change functions such as diff or delete later
-def handleChange(fileName,submit_file=False):
-    print "%s Has changed." % fileName
-    floc = os.path.abspath(fileName)
-    if not submit_file:
-        print "Scanning File Hash with VirusTotal. This is only cursory."
-        vscan_file(floc,submit_file)
-        return True
-    else:
-        print "Submitting File to VirusTotal"
-        vscan_file(floc,submit_file)
-        return True
     
 # Recurse over directories and pass the files to the file hashing function
 def hashDir(dir, blockSize, verbose=None, upload_file=False,storeBin=False,disposistions=["i","i"],scanFile=True):
@@ -213,7 +202,7 @@ def hashFile(fileName, blocksize=65536,verbose=None,uploadFile=False,storeBin=Fa
             
     fingerprint = hasher.hexdigest()
     
-    row = {"host_name":"","file_name":os.path.basename(fileName),"file_location":fileName,"file_fingerprint":fingerprint}
+    row = {"host_name":conf["HOSTNAME"],"file_name":os.path.basename(fileName),"file_location":fileName,"file_fingerprint":fingerprint}
     exists = (dbm.fingerprintRecordExists(fingerprint) or dbm.fileRecordExists(fileName)) 
     if storeBin:
         #base64 Encode the Hex Data to store in the DB
@@ -230,14 +219,15 @@ def hashFile(fileName, blocksize=65536,verbose=None,uploadFile=False,storeBin=Fa
         
     is_new = "True"   
     has_changed = "False"
+    num_tripped = 0
     
     if not exists:
+        
         #Handle case where this is a new file
         print "%s is new. FINGERPRINT: %s." % (fileName,fingerprint)
         if scanFile:
-            vscan_file(os.path.abspath(fileName),uploadFile)   
-        
-        if dispos[0] is "i":
+            num_tripped = vscan_file(os.path.abspath(fileName),uploadFile)
+        if dispos[0] is "i" or num_tripped > 0:
             c = handleNewInteractive(fileName)
         else:
             c = dispos[0]
@@ -250,23 +240,24 @@ def hashFile(fileName, blocksize=65536,verbose=None,uploadFile=False,storeBin=Fa
             print row
     else:
         #Handle cases Where files already exists in DB
-        where_str = "file_fingerprint=\"%s\" or file_location=\"%s\"" % (fingerprint,fileName)
+        host_name = conf["HOSTNAME"]
+        where_str = "(file_fingerprint=\"%s\" or file_location=\"%s\") AND host_name=\"%s\"" % (fingerprint,fileName,host_name)
         rows = dbm.readFromDatabase("id,file_fingerprint,bin_string",where_str)
         is_new = "False"
         for res in rows:
             if fingerprint != res[1]:
+                if scanFile:
+                    num_tripped = vscan_file(os.path.abspath(fileName),uploadFile)  
                 #Handle case where fingerprint has changed
-                if dispos[1] is "i":
+                if dispos[1] is "i" or num_tripped > 0:
                     c = handleChangedInteractive(fileName)
                 else:
                     c = dispos[1]
                 has_changed = "True"
                 if c is "u":
-                    if scanFile:
-                        handleChange(fileName)
                     dbm.updateRow(int(res[0]), row)
                 elif c is "r":
-                    where_str = "file_fingerprint=\"%s\"" % fingerprint
+                    where_str = "file_fingerprint=\"%s\" AND host_name=\"%s\"" % (fingerprint,conf["HOSTNAME"])
                     rows = dbm.readFromDatabase("file_fingerprint,bin_string",where_str)
                     data = binascii.unhexlify(b64decode(rows[0][1]))
                     with open(fileName,"wb") as f:
@@ -306,8 +297,8 @@ def ignoreThis(dirty):
     theThing = ''.join(filter(string.printable.__contains__, dirty))
     config = load_config()
     if os.path.isdir(theThing):
-        if theThing in config["EXCLUDES"]["DIRECTORIES"]:
-            return True
+        ph = PyzanoHelper()
+        return ph.pathInList(theThing,config["EXCLUDES"]["DIRECTORIES"])
         
     elif os.path.isfile(theThing):
         extension = theThing.split(".")[-1]
