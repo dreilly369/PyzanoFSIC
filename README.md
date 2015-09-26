@@ -83,3 +83,6 @@ During any scan you can add the:
 --email-db True
 ```
 option to have the VirusTotal results DB emailed to the configured Admin Email via a GMail account. The Database is base64 encoded and sent as text inside an email.
+
+# Limitations
+Currently there is a known limitation on the size of the Binary that can be stored in the MySQL Database. This is becaue of the max_allowed_packet size. Currently the maximum packet size allowed is 1Gb. There us also a restriction on the length of the encoded binary's string. That limit is 4,294,967,295 characters. Pyzano will throw an exception if either of these conditions is violated. You may still scan these files, and store their meta data, but you will nto be able to create a binary backup via Pyzano.
