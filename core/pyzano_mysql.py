@@ -9,13 +9,17 @@ class DBManager:
     pwd = ''
     dbn = ''
     tbln = ''
+    name = ''
+    
     def __init__(self,conf):    
+        
         self.host = conf['MYSQLDURL']
         self.usr = conf['MYSQLUSER']
         self.pwd = conf['MYSQLPASS']
         self.dbn = conf['MYSQLDBNAME']
         self.tbln = conf['MYSQLTBLNAME']
-    
+        self.name = conf['HOSTNAME']
+        
     def connect_db(self):
         return mdb.connect(self.host, self.usr, self.pwd, self.dbn)
     
@@ -90,7 +94,7 @@ class DBManager:
 
     def fingerprintRecordExists(self, fingerprint):
         tbl = self.tbln
-        ret = self.readFromDatabase("id","file_fingerprint=\"%s\"" % fingerprint)
+        ret = self.readFromDatabase("id","file_fingerprint=\"%s\" AND host_name=\"%s\"" % (fingerprint,self.name))
         if ret is None or len(ret)<1:
             return False
         else:
@@ -98,7 +102,7 @@ class DBManager:
         
     def fileRecordExists(self, fileName):
         tbl = self.tbln
-        ret = self.readFromDatabase("id","file_location=\"%s\"" % fileName)
+        ret = self.readFromDatabase("id","file_location=\"%s\" AND host_name=\"%s\"" % (fileName,self.name))
         if not ret or len(ret)<1:
             return False
         else:
