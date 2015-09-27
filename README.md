@@ -1,14 +1,15 @@
 # PyzanoFSIC
-Pyzano FS Integrity Checker is a tool for monitoring the integrity of a Linux File System. It recursively scans directories for files. It then takes the hash value of the files binary data and compares it to the last known hash for that file. It has several features such as:
+Pyzano FS Integrity Checker is a tool for monitoring the integrity of a computer's File System. It recursively scans directories for files. It then takes the hash value of the files binary data and compares it to the last known hash for that file. It has several features such as:
 * Store Binary backups of important files and programs (see limitations)
 * Restore Files and folders from the backups
 * Monitor System tables and binaries for rootkit changes
 * option to send the File to VirusTotal if it is not found
-* Works with online scanners:
-  - VirusTotal
+* Cross Platform (mostly tested)
+* Can work with other online scanners:
   - Jotti
   - NoVirusThanks (Requires upload)
   - ThreatExpert (Requires upload)
+* Integrates a customizable RapidTriage checker for more in-depth analysis
 
 
 # Usage
@@ -27,7 +28,7 @@ Now we can populate the file fingerprint database. If you know that you are work
 ```
 --no-scan True
 ```
-To skip scanning the3 Hashes with VirusTotal. This will significantly increase the speed of the first scan, which can take a considerable amount of time on a large file system. 
+To skip scanning the Hashes with VirusTotal. This will significantly increase the speed of the first scan, which can take a considerable amount of time on a large file system. 
 
 There are two primary use cases for Pyzano:
 ## File System Integrity Checker (FSIC)
@@ -85,4 +86,4 @@ During any scan you can add the:
 option to have the VirusTotal results DB emailed to the configured Admin Email via a GMail account. The Database is base64 encoded and sent as text inside an email.
 
 # Limitations
-Currently there is a known limitation on the size of the Binary that can be stored in the MySQL Database. This is becaue of the max_allowed_packet size. Currently the maximum packet size allowed is 1Gb. There us also a restriction on the length of the encoded binary's string. That limit is 4,294,967,295 characters. Pyzano will throw an exception if either of these conditions is violated. You may still scan these files, and store their meta data, but you will nto be able to create a binary backup via Pyzano.
+Currently there is a known limitation on the size of the Binary that can be stored in the MySQL Database. This is becaue of the max_allowed_packet size. The maximum packet size allowed by MySQL is 1Gb. There us also a restriction on the length of the encoded binary's string. That limit is 4,294,967,295 characters. Pyzano will throw an exception if either of these conditions is violated. You may still scan these files, and store their meta data, but you will not be able to create a binary backup via Pyzano.
