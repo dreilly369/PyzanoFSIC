@@ -19,7 +19,7 @@ For more details use:
   ```python pyzano.py -h```
 
 ## Getting Started
-The VirusTotal results are stored in a SQLLite .db file for easier submittion. The Database has to be initialized before it can be used. This can be done with the call:
+The VirusTotal results are stored in a SQLLite .db file for easier submission. The Database has to be initialized before it can be used. This can be done with the call:
   ```python pyzano.py --init !```
 If you plan to run a local MySQL Database, otherwise:
 ```python pyzano.py --init True```
