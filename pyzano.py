@@ -140,7 +140,7 @@ def handleNewInteractive(fn):
     choice = ""
     while choice.lower() not in ["delete","add","skip","d","a","s"]:
         print "How would you like to handle %s?:" % fn
-        choice = raw_input("(d)elete from FS, (a)dd to DB (s)kip")
+        choice = raw_input("(d)elete from FS, (a)dd to DB (s)kip: ")
     if choice in ["d","delete"]:
         return 'd'
     elif choice in ["a","add"]:
@@ -205,7 +205,7 @@ def hashFile(fileName, blocksize=65536,verbose=None,uploadFile=False,storeBin=Fa
     row = {"host_name":conf["HOSTNAME"],"file_name":os.path.basename(fileName),"file_location":fileName,"file_fingerprint":fingerprint}
     exists = (dbm.fingerprintRecordExists(fingerprint) or dbm.fileRecordExists(fileName)) 
     if storeBin:
-        #base64 Encode the Hex Data to store in the DB
+        #hex Encode the Hex Data to store in the DB
         afile = open(fileName, 'rb')
         bytes = afile.read()
         hexadecimal = binascii.hexlify(bytes)
@@ -216,7 +216,6 @@ def hashFile(fileName, blocksize=65536,verbose=None,uploadFile=False,storeBin=Fa
             print "Encoded Bin to Large!"
             raise Exception
         row["bin_string"] = hexadecimal
-        
     is_new = "True"   
     has_changed = "False"
     num_tripped = 0
@@ -423,16 +422,20 @@ if __name__ == "__main__":
         hashDir(options.topDir, options.blockSize, verbUp, options.uploadFile,options.storeBinData,dispos,scanFile)
         
     # Handle Files that exist in the DB, but not on the file System
+    if options.topDir is None:
+        scanFrom = options.singleFile
+    else:
+        scanFrom = options.topDir
     if options.handleDeleted.lower() not in ["skip","s"]:
         from pyzano_missing_files import MissingFileScanner
         if options.handleDeleted.lower() in ["d","delete"]: 
-            scanner = MissingFileScanner("d")
+            scanner = MissingFileScanner(scanFrom,"d")
         elif options.handleDeleted.lower() in ["p","print"]: 
-            scanner = MissingFileScanner("p")
+            scanner = MissingFileScanner(scanFrom,"p")
         elif options.handleDeleted.lower() in ["r","restore"]: 
-            scanner = MissingFileScanner("r")
+            scanner = MissingFileScanner(scanFrom,"r")
         else: 
-            scanner = MissingFileScanner()
+            scanner = MissingFileScanner(scanFrom)
         scanner.scanForRemoved()
         
     if options.emailDb is not None:
