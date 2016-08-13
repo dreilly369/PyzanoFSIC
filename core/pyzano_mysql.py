@@ -21,7 +21,7 @@ class DBManager:
         self.name = conf['HOSTNAME']
         
     def connect_db(self):
-        return mdb.connect(self.host, self.usr, self.pwd, self.dbn)
+        return mdb.connect(self.host, self.usr, self.pwd, self.dbn, connect_timeout=6000)
     
     def readFromDatabase(self, projection, where):
         with self.connect_db() as con: 

@@ -1,5 +1,6 @@
 import os
 import platform
+import re
 
 class PyzanoHelper:
     
@@ -15,3 +16,14 @@ class PyzanoHelper:
                 print "Skip this"
                 return True
         return False
+    
+    def convertPathStr(self,pathStr):
+        line = "Cats are smarter than dogs"
+        patt = re.compile('^[a-zA-Z]{1}:', re.IGNORECASE)
+        matchObj = re.match(patt, line)
+
+        if matchObj:
+            print "Windows Drive Found"
+            print "matchObj.group() : ", matchObj.group()
+        else:
+           print "No match!!"

@@ -30,7 +30,7 @@ import os.path
 # -------------------------------------------------------------------
 
 import time
-import urllib, urllib2
+import urllib, urllib2, mimetypes
 import sys
 import httplib
 import os
@@ -41,6 +41,7 @@ import urlparse
 from optparse import OptionParser
 import json 
 from subprocess import Popen, PIPE
+import requests 
 
 try:
     from sqlite3 import *
@@ -52,6 +53,7 @@ try:
     import simplejson
 except ImportError:
     print 'You must install simplejson for VirusTotal, see http://www.undefined.org/python/'
+
         
 def load_config():
     base_dir = os.path.dirname(os.path.dirname(__file__))
@@ -64,6 +66,7 @@ config = load_config()
 VTAPIKEY = config["VTAPIKEY"]
 DBNAME = config["SQLL3DBNAME"]
 MAXWAIT = config["MAXWAIT"] # Time in seconds 
+
 
 class Jotti:
     def __init__(self, file):
@@ -137,7 +140,7 @@ class Jotti:
                 results = None
                 
                 try:
-                    conn = httplib.HTTPConnection(netloc)
+                    conn = httplib.HTTPSConnection(netloc)
                     results_url = '/nestor/getscanprogress.php?' + self.cookie + '&lang=en&scanid=' + scanid
                     conn.request('GET', results_url)
                     results = conn.getresponse().read()
@@ -478,68 +481,74 @@ class NoVirusThanks:
             detects = self.parse_response(location)
         return detects
         
-## {{{ http://code.activestate.com/recipes/146306/ (r1)
-import httplib, mimetypes
-
-def post_multipart(host, selector, fields, files):
-    """
-    Post fields and files to an http host as multipart/form-data.
-    fields is a sequence of (name, value) elements for regular form fields.
-    files is a sequence of (name, filename, value) elements for data to be uploaded as files
-    Return the server's response page.
-    """
-    content_type, body = encode_multipart_formdata(fields, files)
-    h = httplib.HTTP(host)
-    h.putrequest('POST', selector)
-    h.putheader('content-type', content_type)
-    h.putheader('content-length', str(len(body)))
-    h.endheaders()
-    h.send(body)
-    errcode, errmsg, headers = h.getreply()
-    return h.file.read()
-
-def encode_multipart_formdata(fields, files):
-    """
-    fields is a sequence of (name, value) elements for regular form fields.
-    files is a sequence of (name, filename, value) elements for data to be uploaded as files
-    Return (content_type, body) ready for httplib.HTTP instance
-    """
-    BOUNDARY = '----------ThIs_Is_tHe_bouNdaRY_$'
-    CRLF = '\r\n'
-    L = []
-    for (key, value) in fields:
-        L.append('--' + BOUNDARY)
-        L.append('Content-Disposition: form-data; name="%s"' % key)
-        L.append('')
-        L.append(value)
-    for (key, filename, value) in files:
-        L.append('--' + BOUNDARY)
-        L.append('Content-Disposition: form-data; name="%s"; filename="%s"' % (key, filename))
-        L.append('Content-Type: %s' % get_content_type(filename))
-        L.append('')
-        L.append(value)
-    L.append('--' + BOUNDARY + '--')
-    L.append('')
-    body = CRLF.join(L)
-    content_type = 'multipart/form-data; boundary=%s' % BOUNDARY
-    return content_type, body
+def post_multipart(host, fields, fileset):
+        response = requests.post(host, data=fields, files=fileset)
+        return response.text
 
 def get_content_type(filename):
     return mimetypes.guess_type(filename)[0] or 'application/octet-stream'
-## end of http://code.activestate.com/recipes/146306/ }}}
 
 class VirusTotal:
+    
     def __init__(self, file, upload_file=False):
-        self.file = file
-        
-        f = open(self.file, "rb")
-        self.content = f.read()
-        f.close()
+        self.filepath = os.path.abspath(file)        
+        file_to_send = open(self.filepath, "rb")
+        self.content = file_to_send.read()
+        file_to_send.close()
         self.do_upload = upload_file
-        
+
     def check(self, res):
-        url = "https://www.virustotal.com/api/get_file_report.json"
-        parameters = {"resource": res, 
+        host = "https://www.virustotal.com/vtapi/v2/file/report"
+        fields = {"resource": res, 
+                      "apikey": VTAPIKEY}
+        
+        response = requests.post(host, data=fields)
+        json = response.text
+        
+        try:
+            response_dict = simplejson.loads(json)
+            return response_dict
+        except:
+            return {}
+
+    def upload_file(self):
+        selector = "https://www.virustotal.com/vtapi/v2/file/scan"
+        fields = {"apikey":VTAPIKEY}
+        files = {"file":(self.filepath, self.content, get_content_type(self.filepath))}
+        ret = post_multipart(selector, fields, files)
+        return json.loads(ret)
+    
+    def submit(self):
+        resource = hashlib.md5(self.content).hexdigest()
+        detects = self.check(resource)
+
+        if detects.get("response_code") > 0:
+            print 'File already exists on VirusTotal!'
+            return detects
+        elif self.do_upload:
+            print 'File does not exist on VirusTotal, uploading...'
+            resp = self.upload_file()
+            
+            if "verbose_msg" in resp.keys():
+                
+                if resp["response_code"] < 0 or "come back" in resp["verbose_msg"]:
+                    print 'Trying scan_id %s for %d seconds' % (resp["scan_id"], MAXWAIT)
+                    i = 0
+                    while i<(MAXWAIT/10):
+                        detects = self.check(resp["scan_id"])
+                        if detects.get("response_code") >= 0:
+                            return detects
+                        time.sleep(MAXWAIT/10)
+                        i += 1
+
+            return resp
+        else:
+            print "Hash Not Found. File not Submitted."
+            return False
+        
+    def checkIP(self, ip_str):
+        url = "https://www.virustotal.com/vtapi/v2/%s/report" % ip_str
+        parameters = {"ip": res, 
                       "key": VTAPIKEY}
         data = urllib.urlencode(parameters)
         req = urllib2.Request(url, data)
@@ -550,40 +559,6 @@ class VirusTotal:
             return response_dict
         except:
             return {}
-
-    def upload_file(self):
-        host = "www.virustotal.com"
-        selector = "http://www.virustotal.com/api/scan_file.json"
-        fields = [("key", VTAPIKEY)]
-        file_to_send = self.content
-        files = [("file", os.path.basename(self.file), file_to_send)]
-        return post_multipart(host, selector, fields, files)
-
-    def submit(self):
-        resource = hashlib.md5(self.content).hexdigest()
-        detects = self.check(resource)
-        if detects.get("result") > 0:
-            print 'File already exists on VirusTotal!'
-            return detects
-        elif self.do_upload:
-            print 'File does not exist on VirusTotal, uploading...'
-            json = self.upload_file()
-            if json.find("scan_id") != -1:
-                offset = json.find("scan_id") + len("scan_id") + 4
-                scan_id = json[offset:]
-                scan_id = scan_id[:scan_id.find("\"")]
-                print 'Trying scan_id %s for %d seconds' % (scan_id, MAXWAIT)
-                i = 0
-                while i<(MAXWAIT/10):
-                    detects = self.check(scan_id)
-                    if len(detects) > 0:
-                        return detects
-                    time.sleep(MAXWAIT/10)
-                    i += 1
-            return {}
-        else:
-            print "Hash Not Found. File not Submitted."
-            return False
         
 def savetodb(filename, detects, force):
     

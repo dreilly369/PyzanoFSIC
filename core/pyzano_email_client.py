@@ -22,7 +22,7 @@ class EmailManager:
 
         conf = self.load_config()
         email = conf["REPORTEMAIL"]
-        subj = "Report for %s" % conf["HOSTNAME"]
+        subj = "Pyzano Report for %s" % conf["HOSTNAME"]
         gmail_user = conf["GMAILUSER"]
         gmail_pwd = conf["GMAILPASS"]
         msg = {}

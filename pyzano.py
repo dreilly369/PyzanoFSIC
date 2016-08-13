@@ -13,6 +13,7 @@ import httplib
 from httplib import HTTPConnection, HTTPS_PORT
 import ssl
 import socket
+import subprocess
 
 #Pyzano Imports
 sep = os.sep
@@ -109,21 +110,18 @@ def vscan_file(file,upload):
     print "Scanning %s" % file
     vt_scanner = VirusTotal(file, upload)
     res = vt_scanner.submit()
-    cnt = 0
-    if res:
-        if int(res.get("result")) > 0:
-            for k in res.get("report")[1]:
-                if res.get("report")[1][k] != '':
-                    print "\033[1;31m%s : %s\033[1;m" % (k, res.get("report")[1][k])
-                    cnt += 1
-            if cnt > 0:
-                start_str = "\033[1;31m"
-            else:
-                start_str = "\033[1;32m"
-            end_str = "\033[1;m"
-            print "%sDetected by: %d Scanners\nYou can see the scan at\n%s%s" % (start_str,cnt,res.get("permalink"),end_str)
-    return cnt
 
+    if res:
+        print "\n"
+        if res.get("response_code") > 0 and "come back" not in res.get("verbose_msg"):
+            tot_str = res.get("total")
+            plink = res.get("permalink")
+            bad_str = res.get("positives")
+            print "Checked by %d Scanners: %d Alerted.\nYou can see the scan at\n%s\n" % (tot_str,bad_str,plink)
+        else:
+            print res
+            return res
+        
 def handleChangedInteractive(fn):
     choice = ""
     while choice.lower() not in ["update","revert","skip","u","r","s"]:
@@ -313,7 +311,10 @@ if __name__ == "__main__":
     # Misc options
     parser.add_option("-i", "--init", dest="initDb", default=False,
                       help="Initialize SQLLite3 (and MySQL if i=!) DBs and return")
-    
+    parser.add_option("-p", "--profile-system", dest="runProfiler", default=False,
+                      help="Run the system profiler for system state information (-p ! will run only this unit)")
+    parser.add_option("-r", "--rapid-triage", dest="runTriager", default=False,
+                      help="Run the customizable Triager for infection analysis")
     # Handle System change options
     parser.add_option("-w", "--handle-deleted", dest="handleDeleted", default="i",
                       help="Handle Deleted Files by: (i)nteractive, (d)elete from db, or (r)estore to file system")
@@ -346,7 +347,15 @@ if __name__ == "__main__":
     (options, args) = parser.parse_args()
     arglen = len(args)
     
-    
+    if options.runTriager != False:
+        subprocess.check_call("python core/pyzano_rapidtriager.py -a")
+    if options.runProfiler != False:
+        from pyzano_system_profiler import SystemProfiler
+        sp = SystemProfiler()
+        sp.getProfile()
+        if options.runProfiler == "!":
+            exit(0)
+            
     if options.initDb != False:
         if options.initDb is "!":
             pyzano_multi_filescan.initdbs(True)
